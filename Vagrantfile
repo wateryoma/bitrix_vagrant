@@ -13,17 +13,43 @@ Vagrant.configure("2") do |config|
         bx_config.vm.network :forwarded_port, guest: 80, host: 8888, auto_correct: true
         bx_config.vm.network :forwarded_port, guest: 3306, host: 8889, auto_correct: true
         bx_config.vm.network :forwarded_port, guest: 5432, host: 5433, auto_correct: true
+        #bx_config.vm.network :forwarded_port, guest: 1080, host: 10080, auto_correct: true
 
-        bx_config.vm.hostname = "www.testing.de"
-        bx_config.hostsupdater.aliases = ["alias.testing.de", "alias2.somedomain.com"]
+        bx_config.vm.hostname = "biocadcp.local"
+        #bx_config.hostsupdater.aliases = ["alias.testing.de", "alias2.somedomain.com"]
+
+        # Use NFS for shared folders for better performance
+        bx_config.vm.synced_folder "www", "/var/www", nfs: true
         
-        bx_config.vm.synced_folder "www", "/var/www", {:mount_options => ['dmode=777','fmode=777']}
+        #bx_config.vm.synced_folder "www", "/var/www", {:mount_options => ['dmode=777','fmode=777']}
+        #bx_config.vm.synced_folder "db", "/var/lib/mysql", {:mount_options => ['dmode=777','fmode=777']}
         bx_config.vm.provision :shell, :inline => "echo \"Europe/Moscow\" | sudo tee /etc/timezone && dpkg-reconfigure --frontend noninteractive tzdata"
 
         bx_config.vm.provider :virtualbox do |v|
+
+            host = RbConfig::CONFIG['host_os']
+
+            if host =~ /darwin/
+                cpus = `sysctl -n hw.ncpu`.to_i
+                # sysctl returns Bytes and we need to convert to MB
+                mem = `sysctl -n hw.memsize`.to_i / 1024 / 1024 / 4
+            elsif host =~ /linux/
+                cpus = `nproc`.to_i
+                # meminfo shows KB and we need to convert to MB
+                mem = `grep 'MemTotal' /proc/meminfo | sed -e 's/MemTotal://' -e 's/ kB//'`.to_i / 1024 / 4
+            else # sorry Windows folks, I can't help you
+                cpus = 2
+                mem = 1024
+            end
+
             v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-            v.customize ["modifyvm", :id, "--memory", "512"]
+            v.customize ["modifyvm", :id, "--ioapic", "on"]    
+            v.customize ["modifyvm", :id, "--memory", mem]
+            v.customize ["modifyvm", :id, "--cpus", cpus]
+        
         end
+
+
 
         bx_config.vm.provision :puppet do |puppet|
             puppet.manifests_path = "puppet/manifests"

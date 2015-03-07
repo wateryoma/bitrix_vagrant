@@ -25,6 +25,7 @@ include beanstalkd
 include redis
 include memcached
 include composer
+#include mailcatcher
 
 
 class { 'postgresql::server':
